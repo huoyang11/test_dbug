@@ -7,7 +7,8 @@ int main(int argc,char *argv[])
     init_dbug(&pro);
 
     while(1) {
-        play_command(&pro,get_command(&pro));
+        get_command(&pro);
+        play_command(&pro);
     }
 
     uninit_dbug(&pro);
