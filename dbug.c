@@ -28,6 +28,28 @@ int insert_INT3_bp(pid_t pid,struct breakpoint *bp)
     return 0;
 }
 
+int insert_hard_break(pid_t pid,struct breakpoint *bp)
+{
+    struct DR7 dr_7 = {0};
+ 
+    bp->type = HWBP;
+    if (ptrace(PTRACE_POKEUSER, pid, DR_OFFSET(0), (void *)bp->addr) < 0) {
+        perror("tracer, faile to set DR_0\n");
+    }
+
+    dr_7.L0 = 1;
+    dr_7.G0 = 1;
+
+    uint64_t dr7 = 0;
+    memcpy(&dr7,&dr_7,8);
+
+    if (ptrace(PTRACE_POKEUSER, pid, DR_OFFSET(7), (void *)dr7) < 0) {
+        perror("tracer, faile to set DR_7\n");
+    }
+
+    return 0;
+}
+
 int resume_INT3_bp_next(pid_t pid,struct breakpoint *bp,struct user_regs_struct *regs)
 {
     if (!bp || !(bp->type & SFBP)) return -1;
@@ -52,7 +74,7 @@ int resume_INT3_bp_next(pid_t pid,struct breakpoint *bp,struct user_regs_struct 
     return 0;
 }
 
-int find_current_INT3_bp(struct dbug_struct *dbug)
+int find_current_SF_bp(struct dbug_struct *dbug)
 {
     if (!dbug) return -1;
 
@@ -65,6 +87,27 @@ int find_current_INT3_bp(struct dbug_struct *dbug)
             continue;
 
         if (bps[i].addr == (dbug->regs.rip - 1)) 
+            break;
+    }
+
+    if (i == size) return -1;
+
+    return i;
+}
+
+int find_current_HW_bp(struct dbug_struct *dbug)
+{
+    if (!dbug) return -1;
+
+    int i = 0;
+    int size = dbug->bps->nelts;
+    struct breakpoint *bps = dbug->bps->elts;
+
+    for (;i < size;i++) {
+        if (!(bps[i].type & HWBP))
+            continue;
+
+        if (bps[i].addr == dbug->regs.rip) 
             break;
     }
 

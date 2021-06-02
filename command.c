@@ -12,6 +12,11 @@ struct command cmd_set[] = {
     {"dbug",command_dbug},
     {"attach",command_attach},
     {"showreg",command_showreg},
+    {"watch",command_watch},
+    {"q",command_exit},
+    {"exit",command_exit},
+    {"quit",command_exit},
+    {"showbps",command_showbps},
     {NULL,NULL},
 };
 
@@ -47,10 +52,15 @@ int command_continue(struct dbug_struct *dbug,void *arg)
     ptrace(PTRACE_GETREGS,dbug->pid,NULL,&dbug->regs);
 
     if (WSTOPSIG(dbug->status) == SIGTRAP) {
-        int index = find_current_INT3_bp(dbug);
+        int index = find_current_SF_bp(dbug);
         if (index != -1) {
             printf("trigger breakpoint %lx(%s)\n",bps[index].addr,bps[index].name);
             resume_INT3_bp_next(dbug->pid,&bps[index],&dbug->regs);
+        }
+
+        index = find_current_HW_bp(dbug);
+        if (index != -1) {
+            printf("trigger HW breakpoint %lx\n",bps[index].addr);
         }
     }
 
@@ -62,6 +72,30 @@ int command_show(struct dbug_struct *dbug,void *arg)
     if (!dbug) return -1;
 
     foreach_fun(dbug->funs);
+
+    return 0;
+}
+
+int command_exit(struct dbug_struct *dbug,void *arg)
+{
+    if (!dbug) return -1;
+
+    kill(dbug->pid,SIGKILL);
+    exit(0);
+
+    return 0;
+}
+
+int command_showbps(struct dbug_struct *dbug,void *arg)
+{
+    if (!dbug) return -1;
+
+    int n = dbug->bps->nelts;
+    struct breakpoint *bps = (struct breakpoint *)dbug->bps->elts;
+
+    for (int i = 0;i < n;i++) {
+        printf("%4d %lx\n",i,bps[i].addr);
+    }
 
     return 0;
 }
@@ -129,6 +163,19 @@ int command_showreg(struct dbug_struct *dbug,void *arg)
     printf("es:0x%llx\n",reg->es);
     printf("fs:0x%llx\n",reg->fs);
     printf("gs:0x%llx\n",reg->gs);
+
+    return 0;
+}
+
+int command_watch(struct dbug_struct *dbug,void *arg)
+{
+    if (!dbug) return -1;
+
+    ngx_str_t *str = (ngx_str_t *)((ngx_array_t *)arg)->elts;
+    struct breakpoint *bp = ngx_array_push(dbug->bps);
+    sscanf(str[1].data,"%lx",&bp->addr);
+    printf("watch %lx\n",bp->addr);
+    insert_hard_break(dbug->pid,bp);
 
     return 0;
 }

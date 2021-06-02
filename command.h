@@ -19,6 +19,9 @@ int command_show(struct dbug_struct *dbug,void *arg);
 int command_dbug(struct dbug_struct *dbug,void *arg);
 int command_attach(struct dbug_struct *dbug,void *arg);
 int command_showreg(struct dbug_struct *dbug,void *arg);
+int command_watch(struct dbug_struct *dbug,void *arg);
+int command_exit(struct dbug_struct *dbug,void *arg);
+int command_showbps(struct dbug_struct *dbug,void *arg);
 int get_command(struct dbug_struct *dbug);
 int play_command(struct dbug_struct *dbug);
 
