@@ -9,7 +9,7 @@
 
 #define BUFSIZE 1024
 #define str2uint64(str,num) sscanf(str,"%lx",&num)
-
+//获取文件大小
 int get_file_size(FILE *fp)
 {
     if(fp == NULL) return -1;
@@ -20,7 +20,7 @@ int get_file_size(FILE *fp)
 
     return length;
 }
-
+//获取文件内容
 int get_file_word(FILE *fp,char *word)
 {
     if(fp == NULL || word == NULL) return -1;
@@ -32,7 +32,7 @@ int get_file_word(FILE *fp,char *word)
 
     return 0;
 }
-
+//获取程序基地址
 uint64_t get_pid_base(pid_t pid)
 {
     char buf[BUFSIZE] = {0};
@@ -145,14 +145,16 @@ struct fun_arr *open_funs(pid_t pid)
     get_file_word(fp,word);
     fclose(fp);
 
-    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)word;
-    int table_max = ehdr->e_shnum;
-    int shstrndx = ehdr->e_shstrndx;
-    Elf64_Shdr *stables = (Elf64_Shdr *)(word + ehdr->e_shoff);
+    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)word;//elf文件头
+    int table_max = ehdr->e_shnum;//段表的数量
+    int shstrndx = ehdr->e_shstrndx;//字符串表的下标
+    Elf64_Shdr *stables = (Elf64_Shdr *)(word + ehdr->e_shoff);//段表
 
+    //获取符号表
     int size = 0;
     Elf64_Sym *syns = (Elf64_Sym *)get_section_addr(stables,word,table_max,shstrndx,".symtab",&size);
 
+    //获取符号表字符串
     int strsize = 0;
     char *strtab_addr = get_section_addr(stables,word,table_max,shstrndx,".strtab",&strsize);
 

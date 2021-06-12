@@ -62,12 +62,13 @@ int resume_INT3_bp_next(pid_t pid,struct breakpoint *bp,struct user_regs_struct 
 
     regs->rip = bp->addr;
     ptrace(PTRACE_SETREGS,pid,NULL,regs);
-
+    //执行一条汇编
     ptrace(PTRACE_SINGLESTEP,pid,0,0);
     wait(NULL);
 
     //printf("resume %lx\n",(bp->orig_code & 0xFFFFFFFFFFFFFF00) | INT_3);
     //ptrace(PTRACE_POKETEXT, pid, (void *)addr, (bp->orig_code & 0xFFFFFFFFFFFFFF00) | INT_3);
+    //断点恢复
     char bit = INT_3;
     write_pro_mem(pid,addr,&bit,1);
 
@@ -164,6 +165,7 @@ int dbug_pro(struct dbug_struct *dbug,char *path,char **argv)
     if (WIFEXITED(dbug->status)) return -1;
 
     dbug->pid = pid;
+    //获取函数符号
     dbug->funs = open_funs(dbug->pid);
 
     return 0;

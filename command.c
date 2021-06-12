@@ -5,6 +5,7 @@
 #include "command.h"
 #include "dbug.h"
 
+//命令表
 struct command cmd_set[] = {
     {"b",command_break},
     {"c",command_continue},
@@ -25,10 +26,10 @@ int command_break(struct dbug_struct *dbug,void *arg)
     if (!dbug) return -1;
 
     ngx_str_t *str = (ngx_str_t *)((ngx_array_t *)arg)->elts;
-
+    //查找输入的符号
     int index = find_func(dbug->funs,str[1].data);
     if (index == -1) return -1;
-    
+    //插入软件断点
     struct breakpoint *bp = ngx_array_push(dbug->bps);
     bp->name = dbug->funs->data[index].name;
     bp->addr = dbug->funs->data[index].addr;
@@ -40,8 +41,8 @@ int command_break(struct dbug_struct *dbug,void *arg)
 int command_continue(struct dbug_struct *dbug,void *arg)
 {
     if (!dbug) return -1;
-    struct breakpoint *bps = (struct breakpoint *)dbug->bps->elts;
-
+    struct breakpoint *bps = (struct breakpoint *)dbug->bps->elts;//断点数组
+    //进程继续执行
     if (ptrace(PTRACE_CONT,dbug->pid,NULL,NULL) < 0) {
         perror("ptrace cont err");
     }
@@ -50,15 +51,15 @@ int command_continue(struct dbug_struct *dbug,void *arg)
     if (WIFEXITED(dbug->status)) exit(0);
 
     ptrace(PTRACE_GETREGS,dbug->pid,NULL,&dbug->regs);
-
+    //是否是断点触发
     if (WSTOPSIG(dbug->status) == SIGTRAP) {
-        int index = find_current_SF_bp(dbug);
+        int index = find_current_SF_bp(dbug); //查找是否是软件断点触发
         if (index != -1) {
             printf("trigger breakpoint %lx(%s)\n",bps[index].addr,bps[index].name);
             resume_INT3_bp_next(dbug->pid,&bps[index],&dbug->regs);
         }
 
-        index = find_current_HW_bp(dbug);
+        index = find_current_HW_bp(dbug); //查找是否是硬件断点触发
         if (index != -1) {
             printf("trigger HW breakpoint %lx\n",bps[index].addr);
         }
@@ -70,7 +71,7 @@ int command_continue(struct dbug_struct *dbug,void *arg)
 int command_show(struct dbug_struct *dbug,void *arg)
 {
     if (!dbug) return -1;
-
+    //输出进程函数符号
     foreach_fun(dbug->funs);
 
     return 0;
@@ -105,9 +106,9 @@ int command_dbug(struct dbug_struct *dbug,void *arg)
     if (!dbug) return -1;
 
     ngx_array_t *args = (ngx_array_t *)arg;
-    ngx_str_t *str = (ngx_str_t *)args->elts;
+    ngx_str_t *str = (ngx_str_t *)args->elts;//输入参数
     char **argv = ngx_pcalloc(dbug->pool,sizeof(char *) * (args->nelts));
-
+    //构造进程执行的参数
     for (int i = 0;i < args->nelts;i++) {
         argv[i] = str[i+1].data;
     }
@@ -120,7 +121,7 @@ int command_dbug(struct dbug_struct *dbug,void *arg)
 int command_attach(struct dbug_struct *dbug,void *arg)
 {
     if (!dbug) return -1;
-
+    //附加一个进程
     ngx_str_t *str = (ngx_str_t *)((ngx_array_t *)arg)->elts;
     attach_pro(dbug,atoi(str[1].data));
 
@@ -158,7 +159,7 @@ int command_showreg(struct dbug_struct *dbug,void *arg)
     printf("rsp:0x%llx\n",reg->rsp);
     printf("ss:0x%llx\n",reg->ss);
     printf("fs_base:0x%llx\n",reg->fs_base);
-    printf("gs_base0x%llx\n",reg->gs_base);
+    printf("gs_base:0x%llx\n",reg->gs_base);
     printf("ds:0x%llx\n",reg->ds);
     printf("es:0x%llx\n",reg->es);
     printf("fs:0x%llx\n",reg->fs);
@@ -170,7 +171,7 @@ int command_showreg(struct dbug_struct *dbug,void *arg)
 int command_watch(struct dbug_struct *dbug,void *arg)
 {
     if (!dbug) return -1;
-
+    //插入硬件断点
     ngx_str_t *str = (ngx_str_t *)((ngx_array_t *)arg)->elts;
     struct breakpoint *bp = ngx_array_push(dbug->bps);
     sscanf(str[1].data,"%lx",&bp->addr);
@@ -188,18 +189,21 @@ int get_command(struct dbug_struct *dbug)
     fgets(buf,sizeof(buf),stdin);
 
     ngx_array_t *cmds = dbug->cmd;
-    cmds->nelts = 0;
+    cmds->nelts = 0;//清空数组
     ngx_str_t *str = NULL;
     char *p_data = NULL;
     int len = strlen(buf);
+    //以空格分隔命令 分割结果方式dbug->cmd数组里
     for (int i = 0;i < len;i++) {
-        if (buf[i] == ' ') continue;
+        if (buf[i] == ' ') continue;//忽略空格
         for (int j = i;j < len;j++) {
             if (isspace(buf[j])) {
-                int size = j - i + 1;
+                int size = j - i + 1;//字符串长度
                 p_data = ngx_pcalloc(dbug->pool,size);
+                //拷贝字符串
                 memcpy(p_data,buf + i,j - i);
                 p_data[size - 1] = 0;
+                //添加数组
                 str = ngx_array_push(cmds);
                 //ngx_str_set(str, p_data);
                 str->data = p_data;
@@ -223,8 +227,8 @@ int play_command(struct dbug_struct *dbug)
     struct command *it = cmd_set;
     ngx_str_t *str = (ngx_str_t *)cmds->elts;
     for (;it->name;it++) {
-        if (str->len == strlen(it->name) && memcmp(str->data,it->name,str->len) == 0) {
-            it->fun(dbug,cmds);
+        if (str->len == strlen(it->name) && memcmp(str->data,it->name,str->len) == 0) {//查找命令
+            it->fun(dbug,cmds);//命令对应的执行回调
             return 0;
         }
     }
